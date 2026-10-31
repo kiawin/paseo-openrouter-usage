@@ -3,6 +3,10 @@
   "name": "OpenRouter usage",
   "description": "Shows OpenRouter credits, key limit, and spend in Paseo's Usage panel.",
   "icon": "assets/icon.png",
+  "media": [
+    "assets/usage-card.png",
+    "assets/settings.png"
+  ],
   "requirements": {
     "paseo": ">=0.11.0"
   }
