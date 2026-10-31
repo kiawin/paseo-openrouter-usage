@@ -1,0 +1,7 @@
+{
+  "id": "openrouter-usage",
+  "name": "OpenRouter usage",
+  "requirements": {
+    "paseo": ">=0.11.0"
+  }
+}
