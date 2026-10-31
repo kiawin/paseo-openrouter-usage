@@ -3,7 +3,7 @@
 A [Paseo](https://paseo.sh) plugin that adds OpenRouter credits, key limit, and spend to the Usage panel.
 
 ```bash
-paseo plugin install git:kiawin/paseo-openrouter-usage
+paseo plugin install npm:@kiawin/paseo-openrouter-usage
 ```
 
 See [OVERVIEW.md](OVERVIEW.md) for setup.

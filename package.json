@@ -1,9 +1,18 @@
 {
-  "name": "paseo-openrouter-usage",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@kiawin/paseo-openrouter-usage",
+  "version": "0.1.2",
   "description": "Shows OpenRouter credits, key limit, and spend in Paseo's Usage panel.",
+  "keywords": [
+    "openrouter",
+    "paseo",
+    "paseo-plugin"
+  ],
+  "homepage": "https://github.com/kiawin/paseo-openrouter-usage",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kiawin/paseo-openrouter-usage.git"
+  },
   "files": [
     "paseo-plugin.json",
     "OVERVIEW.md",
@@ -13,7 +22,8 @@
     "index.server.ts",
     "client/",
     "server/",
-    "shared/"
+    "shared/",
+    "!**/*.test.ts"
   ],
   "scripts": {
     "typecheck": "tsc --noEmit",
