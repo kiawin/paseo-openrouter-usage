@@ -1,7 +1,3 @@
-import { promises as fs } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
-import { z } from "zod";
 import {
   toneFromUsedPct,
   unavailable,
@@ -15,59 +11,14 @@ import {
   type UsageWindow,
 } from "@getpaseo/plugin/server/usage";
 import { inputSchema, type Store, type UsageInput } from "../shared/input.js";
-
-const API_URL = "https://openrouter.ai/api/v1";
-
-function configDir(): string {
-  return join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "openrouter");
-}
-
-function apiKeyStores(): Store[] {
-  return [
-    { store: "env", locator: "OPENROUTER_API_KEY" },
-    { store: "file", locator: join(configDir(), "api-key") },
-  ];
-}
-
-function managementKeyStores(): Store[] {
-  return [
-    { store: "env", locator: "OPENROUTER_MANAGEMENT_KEY" },
-    { store: "file", locator: join(configDir(), "management-key") },
-  ];
-}
-
-const KeyResponseSchema = z.object({
-  data: z.object({
-    limit: z.number().nullable(),
-    limit_remaining: z.number().nullable(),
-    limit_reset: z.string().nullable(),
-    usage: z.number(),
-    usage_daily: z.number(),
-    usage_weekly: z.number(),
-    usage_monthly: z.number(),
-    budgets: z.array(z.object({ scope: z.string(), resets_at: z.string().nullish() })).optional(),
-  }),
-});
-type KeyData = z.infer<typeof KeyResponseSchema>["data"];
-
-const CreditsResponseSchema = z.object({
-  data: z.object({ total_credits: z.number(), total_usage: z.number() }),
-});
-type CreditsData = z.infer<typeof CreditsResponseSchema>["data"];
-
-async function readKey(store: Store): Promise<string | undefined> {
-  if (store.store === "env") return process.env[store.locator]?.trim() || undefined;
-  try {
-    return (await fs.readFile(store.locator, "utf8")).trim() || undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-async function firstStore(stores: Store[]): Promise<Store | undefined> {
-  for (const store of stores) if (await readKey(store)) return store;
-  return undefined;
-}
+import {
+  CreditsResponseSchema,
+  KeyResponseSchema,
+  getJson,
+  type CreditsData,
+  type KeyData,
+} from "./api.js";
+import { apiKeyStores, firstStore, managementKeyStores, readKey } from "./stores.js";
 
 async function globalAccount(): Promise<UsageAccount | undefined> {
   const [apiKey, managementKey] = await Promise.all([
@@ -105,18 +56,6 @@ export async function discover(scope: UsageScope): Promise<UsageAccount[]> {
   const { apiKey } = account.input as UsageInput;
   const known = apiKey && (await readKey(apiKey));
   return known && keys.includes(known) ? [account] : [];
-}
-
-type ApiResult<T> = { ok: true; data: T } | { ok: false; status: number };
-
-async function getJson<T>(path: string, key: string, schema: z.ZodType<T>): Promise<ApiResult<T>> {
-  const res = await fetch(`${API_URL}${path}`, {
-    signal: AbortSignal.timeout(15_000),
-    headers: { Authorization: `Bearer ${key}`, Accept: "application/json" },
-  });
-  if (res.status === 401 || res.status === 403) return { ok: false, status: res.status };
-  if (!res.ok) throw new Error(`OpenRouter ${path} returned ${res.status}`);
-  return { ok: true, data: schema.parse(await res.json()) };
 }
 
 async function requireKey(store: Store | undefined, name: string): Promise<string | undefined> {
