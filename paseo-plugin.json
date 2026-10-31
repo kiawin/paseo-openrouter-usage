@@ -1,6 +1,8 @@
 {
   "id": "openrouter-usage",
   "name": "OpenRouter usage",
+  "description": "Shows OpenRouter credits, key limit, and spend in Paseo's Usage panel.",
+  "icon": "assets/icon.png",
   "requirements": {
     "paseo": ">=0.11.0"
   }

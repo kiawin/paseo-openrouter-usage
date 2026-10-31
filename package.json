@@ -2,10 +2,13 @@
   "name": "paseo-openrouter-usage",
   "version": "0.0.0",
   "private": true,
+  "description": "Shows OpenRouter credits, key limit, and spend in Paseo's Usage panel.",
+  "license": "MIT",
   "files": [
     "paseo-plugin.json",
     "OVERVIEW.md",
     "icon.svg",
+    "assets/",
     "index.client.tsx",
     "index.server.ts",
     "client/",
