@@ -1,14 +1,26 @@
 import type { RpcInput, RpcOutput } from "@getpaseo/plugin";
 import type { KeyKind, KeyStatus, removeKey, saveKey } from "../shared/keys.js";
 import { CreditsResponseSchema, KeyResponseSchema, getJson } from "./api.js";
-import { keyStores, readKey, removeKeyFile, writeKeyFile } from "./stores.js";
+import {
+  environmentStore,
+  fileStore,
+  readKey,
+  removeKeyFile,
+  writeKeyFile,
+} from "./stores.js";
 
 async function status(kind: KeyKind): Promise<KeyStatus> {
-  const [env, file] = keyStores(kind);
-  let source: KeyStatus["source"] = "none";
-  if (await readKey(env)) source = "env";
-  else if (await readKey(file)) source = "file";
-  return { source, envVar: env.locator, file: file.locator };
+  const env = environmentStore(kind);
+  let source: KeyStatus["source"] = (await readKey(kind, env)) ? "env" : "none";
+  let file = "";
+  try {
+    const store = fileStore(kind);
+    file = store.locator;
+    if (source === "none" && (await readKey(kind, store))) source = "file";
+  } catch {
+    // Environment-only configurations remain usable even when the daemon home is invalid.
+  }
+  return { source, envVar: env.locator, file };
 }
 
 export async function getKeysStatus() {
@@ -35,15 +47,25 @@ export async function saveKeyFile({
   let error: string | undefined;
   try {
     error = await checkKey(kind, key);
-  } catch (cause) {
-    error = `Could not reach OpenRouter: ${cause instanceof Error ? cause.message : String(cause)}`;
+  } catch {
+    // Sanitized: network and filesystem errors can carry URLs, paths, or response bodies.
+    error = "Could not reach OpenRouter. Check the network on the daemon host and try again.";
   }
   if (error) return { ok: false, error };
-  await writeKeyFile(keyStores(kind)[1].locator, key);
+  try {
+    await writeKeyFile(kind, fileStore(kind), key);
+  } catch {
+    return { ok: false, error: "Could not save the key file. Check the daemon host's permissions." };
+  }
   return { ok: true };
 }
 
 export async function removeKeyFileFor({ kind }: RpcInput<typeof removeKey>) {
-  await removeKeyFile(keyStores(kind)[1].locator);
+  try {
+    await removeKeyFile(kind, fileStore(kind));
+  } catch {
+    // Sanitized: filesystem errors carry the raw paths and permission details.
+    throw new Error("Could not remove the key file. Check the daemon host's permissions.");
+  }
   return {};
 }

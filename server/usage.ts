@@ -11,6 +11,7 @@ import {
   type UsageWindow,
 } from "@getpaseo/plugin/server/usage";
 import { inputSchema, type Store, type UsageInput } from "../shared/input.js";
+import type { KeyKind } from "../shared/keys.js";
 import {
   CreditsResponseSchema,
   KeyResponseSchema,
@@ -18,12 +19,24 @@ import {
   type CreditsData,
   type KeyData,
 } from "./api.js";
-import { apiKeyStores, firstStore, managementKeyStores, readKey } from "./stores.js";
+import { environmentStore, fileStore, readKey } from "./stores.js";
+
+async function firstAvailableStore(kind: KeyKind): Promise<Store | undefined> {
+  const env = environmentStore(kind);
+  if (await readKey(kind, env)) return env;
+  try {
+    const file = fileStore(kind);
+    return (await readKey(kind, file)) ? file : undefined;
+  } catch {
+    // Keep valid environment-key usage available even if the daemon home is malformed.
+    return undefined;
+  }
+}
 
 async function globalAccount(): Promise<UsageAccount | undefined> {
   const [apiKey, managementKey] = await Promise.all([
-    firstStore(apiKeyStores()),
-    firstStore(managementKeyStores()),
+    firstAvailableStore("apiKey"),
+    firstAvailableStore("managementKey"),
   ]);
   if (!apiKey && !managementKey) return undefined;
   const input: UsageInput = {};
@@ -32,7 +45,15 @@ async function globalAccount(): Promise<UsageAccount | undefined> {
   return { key: "default", input };
 }
 
-const isOpenRouter = (url: string | undefined) => url?.includes("openrouter.ai") ?? false;
+function isOpenRouter(url: string | undefined): boolean {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.hostname.toLowerCase() === "openrouter.ai";
+  } catch {
+    return false;
+  }
+}
 
 /** Keys a session sends to OpenRouter, by the routes its launch environment selects. */
 function sessionKeys(scope: Extract<UsageScope, { kind: "session" }>): string[] {
@@ -54,13 +75,19 @@ export async function discover(scope: UsageScope): Promise<UsageAccount[]> {
   const keys = sessionKeys(scope);
   if (keys.length === 0) return [];
   const { apiKey } = account.input as UsageInput;
-  const known = apiKey && (await readKey(apiKey));
+  const known = apiKey && (await readKey("apiKey", apiKey));
   return known && keys.includes(known) ? [account] : [];
 }
 
-async function requireKey(store: Store | undefined, name: string): Promise<string | undefined> {
+async function requireKey(
+  kind: KeyKind,
+  store: Store | undefined,
+  name: string,
+): Promise<string | undefined> {
   if (!store) return undefined;
-  const key = await readKey(store);
+  // readKey validates and normalizes the store before opening a file or reading an environment
+  // variable, so this call site cannot accidentally bypass the approved-source boundary.
+  const key = await readKey(kind, store);
   if (!key) throw new Error(`OpenRouter ${name} store no longer exists`);
   return key;
 }
@@ -144,8 +171,8 @@ function spendDetails(key: KeyData): UsageDetail[] {
 export async function fetchUsage(value: unknown): Promise<UsageReport> {
   const input = inputSchema.parse(value);
   const [apiKey, managementKey] = await Promise.all([
-    requireKey(input.apiKey, "API key"),
-    requireKey(input.managementKey, "management key"),
+    requireKey("apiKey", input.apiKey, "API key"),
+    requireKey("managementKey", input.managementKey, "management key"),
   ]);
   const [key, credits] = await Promise.all([
     apiKey ? getJson("/key", apiKey, KeyResponseSchema) : undefined,
